@@ -1,0 +1,94 @@
+{{- if .Values.redisCache.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-cache
+  namespace: {{ default (include "swirl.name" .) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.redisCache.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis-cache
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis-cache
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: redis-cache
+          image: "{{ .Values.redisCache.image.repository }}:{{ .Values.redisCache.image.tag }}"
+          imagePullPolicy: {{ .Values.redisCache.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.redisCache.port }}
+              name: redis-cache
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-cache
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: redis-cache
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.redisCache.port }}
+      targetPort: {{ .Values.redisCache.port }}
+{{- end }}
+
+{{- if .Values.redisBroker.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-broker
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.redisBroker.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis-broker
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis-broker
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: redis-broker
+          image: "{{ .Values.redisBroker.image.repository }}:{{ .Values.redisBroker.image.tag }}"
+          imagePullPolicy: {{ .Values.redisBroker.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.redisBroker.port }}
+              name: redis-broker
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-broker
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: redis-broker
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - protocol: TCP
+      port: {{ .Values.redisBroker.port }}
+      targetPort: {{ .Values.redisBroker.port }}
+{{- end }}

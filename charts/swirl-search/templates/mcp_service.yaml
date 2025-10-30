@@ -1,0 +1,26 @@
+{{- if .Values.mcp.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    app.kubernetes.io/instance: swirl
+    app.kubernetes.io/name: mcp
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.mcp.loadBalancer.azureResourceGroup | quote }}
+    service.beta.kubernetes.io/azure-pip-name: {{ .Values.mcp.loadBalancer.azurePublicIPName | quote }}
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "Tcp"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-port: "9000"
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+    - port: {{ default "9000" .Values.mcp.port }}
+      targetPort: {{ default "9000" .Values.mcp.port }}
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/instance: swirl
+    app.kubernetes.io/name: mcp
+{{- end }}

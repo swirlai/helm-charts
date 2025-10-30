@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" $) "service" | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+spec:
+  type: {{ default "ClusterIP" .Values.swirl.service.type | quote }}
+  ports:
+    - port: {{ default "8000" .Values.swirl.service.port }}
+      targetPort: {{ default "8000" .Values.swirl.service.port }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "swirl.selectorLabels" . | nindent 4 }}

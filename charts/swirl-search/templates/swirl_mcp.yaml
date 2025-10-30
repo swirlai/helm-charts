@@ -1,0 +1,77 @@
+{{- if .Values.mcp.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    app.kubernetes.io/instance: swirl
+    app.kubernetes.io/name: mcp
+spec:
+  replicas: {{ .Values.mcp.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "mcp"
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "mcp"
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: mcp
+          image: "{{ .Values.mcp.image.repository}}:{{ .Values.mcp.image.tag }}"
+          imagePullPolicy: {{ default "Always" .Values.mcp.image.pullPolicy | quote }}
+          ports:
+            - containerPort: {{ .Values.mcp.port }}
+              protocol: TCP
+              name: http
+          livenessProbe:
+            exec:
+              command: {{ .Values.mcp.probe.liveness.execCommand }}
+            initialDelaySeconds: {{ default 30 .Values.mcp.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ default 15 .Values.mcp.probe.liveness.periodSeconds }}
+            failureThreshold: {{ default 3 .Values.mcp.probe.liveness.failureThreshold }}
+            timeoutSeconds: {{ default 30 .Values.mcp.probe.liveness.timeoutSeconds }}
+          readinessProbe:
+            exec:
+              command: {{ .Values.mcp.probe.readiness.execCommand }}
+            initialDelaySeconds: {{ default 30 .Values.mcp.probe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ default 15 .Values.mcp.probe.readiness.periodSeconds }}
+            failureThreshold: {{ default 3 .Values.mcp.probe.readiness.failureThreshold }}
+            timeoutSeconds: {{ default 30 .Values.mcp.probe.readiness.timeoutSeconds }}
+          env:
+            - name: SWIRL_API_BASE
+              value: "{{ .Values.mcp.swirl.api_base }}"
+            - name: SWIRL_API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: "swirl-env-secrets"
+                  key: SWIRL_API_USERNAME
+            - name: SWIRL_API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "swirl-env-secrets"
+                  key: SWIRL_API_PASSWORD
+            - name: SWIRL_API_BASE_PATH
+              value: "{{ .Values.mcp.swirl.api_base_path }}"
+            - name: SWIRL_MCP_SERVER_HOST
+              value: "{{ .Values.mcp.host }}"
+            - name: SWIRL_MCP_SERVER_PORT
+              value: "{{ .Values.mcp.port }}"
+            - name: SWIRL_MCP_SWIRL_API_TIMEOUT
+              value: "{{ .Values.mcp.swirl.api_timeout }}"
+            - name: SWIRL_MCP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: "swirl-env-secrets"
+                  key: SWIRL_MCP_USERNAME
+            - name: SWIRL_MCP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "swirl-env-secrets"
+                  key: SWIRL_MCP_PASSWORD
+
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+{{- end }}

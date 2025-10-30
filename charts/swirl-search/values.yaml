@@ -1,0 +1,386 @@
+# Swirl Helm Chart Values
+# This file contains the default configuration values for the Swirl application deployment
+
+# ==============================================================================
+# Global Settings
+# ==============================================================================
+
+# Kubernetes namespace where all resources will be deployed
+namespace: swirl
+
+# Docker registry credentials for pulling private images
+imagePullSecrets: []
+
+# Default Docker registry configuration
+defaultDockerRegistry:
+  server: https://index.docker.io/v1/
+  username:
+  password:
+
+# ==============================================================================
+# Swirl Application Configuration
+# ==============================================================================
+swirl:
+  # Default domain for the Swirl application (e.g., swirl.company.domain)
+  defaultDomain:
+
+  # Horizontal Pod Autoscaling (HPA) configuration
+  autoscaling:
+    enabled: false  # Set to true to enable auto-scaling
+    minReplicas: 1  # Minimum number of replicas
+    maxReplicas: 3  # Maximum number of replicas
+    queueDepthTarget: "10.0"  # Target queue depth for scaling decisions
+    busyRatioTarget: "1.0"    # Target busy ratio for scaling decisions
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 300  # Wait time before scaling up
+        podValue: 1                      # Number of pods to add per scale event
+        periodSeconds: 60                # Frequency of scale up checks
+      scaleDown:
+        stabilizationWindowSeconds: 300  # Wait time before scaling down
+        podValue: 1                      # Number of pods to remove per scale event
+        periodSeconds: 60                # Frequency of scale down checks
+
+  # Configuration Maps for environment variables and startup scripts
+  configMap:
+    # Environment configuration variables
+    envConfig:
+      # Django: defines host/domains which swirl app can serve
+      ALLOWED_HOSTS: localhost,127.0.0.1,swirl-service.swirl.svc.cluster.local
+      # Inform Djang Axes how to determine client ip addresses for reporting/lockout
+      AXES_CLIENT_IP_CALLABLE: swirl.utils.get_client_ip
+
+      # Celery to Redis for task queues
+      CACHE_REDIS_URL: redis://redis-cache:6379/1
+      CELERY_BROKER_URL: redis://redis-broker:6379/0
+      CELERY_RESULT_BACKEND: redis://redis-broker:6379/0
+      # Controls security, performance, logging, and debugging settings
+      # for development and production deployments
+      IN_PRODUCTION: "True"
+      PAGE_CACHE_REDIS_URL: redis://redis-cache:6379/7
+      PROTOCOL:
+      SEARCH_RESULT_STORE_REDIS_URL: redis://redis-broker:6379/2
+      SEARCH_RESULTS_STORE_TIMEOUT: "300"
+      SHOULD_USE_TOKEN_FROM_OAUTH: "True"
+      SWIRL_ES_VERSION: "8"                    # Elasticsearch version
+      SWIRL_EXPLAIN: "True"
+      SWIRL_SVC: swirl-service.swirl.svc.cluster.local
+      SWIRL_RAG_CHAT_INTERACTION_APPROACH: ChatGAIGuided
+      SWIRL_RAG_DISTRIBUTION_STRATEGY: RoundRobin
+      SWIRL_TEXT_SUMMARIZATION_URL: http://topic-text-matcher:7029
+      TIKA_SERVER_ENDPOINT: http://tika:9998
+
+    # Override for swirl Initialization script configuration
+    initConfig:
+    # Override for  swirl container start/loading script configuration
+    loadConfig:
+    # Override for one time post deployment setup script
+    msalSpConfig:
+
+  # Secret environment variables (loaded from Kubernetes secrets)
+  secret:
+    envSecrets:
+
+  # Container image configuration
+  image:
+    pullPolicy: IfNotPresent
+    repository: swirlai/release-swirl-search-enterprise
+    tag: latest
+
+  # Lease processor configuration
+  leaseprocessor:
+    enabled: false
+
+  # Init container configuration (runs before main container)
+  initContainer:
+    enabled: true
+    command: ["/bin/bash", "/tmp/swirl-init.sh"]
+
+  #  One time post deployment setup Kubernetes Job configuration
+  job:
+    enabled: true
+    command: ["/bin/bash", "/tmp/swirl-msal-sp.sh"]
+
+  # Override the default name of the deployment
+  nameOverride:
+
+  # Pod annotations (useful for monitoring tools like Datadog)
+  podAnnotations:
+    ad.datadoghq.com/swirl.logs: |
+      [
+        { "type": "file", "path": "/app/logs/celery-beats.log", "source": "swirl-search-internal", "service": "swirl-search-internal-celery"},
+        {"source":"swirl-search-internal", "service":"swirl-search-internal"}
+      ]
+
+  # Additional labels to add to pods
+  podLabels: {}
+
+  # Security context for the pod
+  podSecurityContext: {}
+
+  # Health check probes
+  probe:
+    liveness:
+      failureThreshold: 3
+      httpGet:
+        httpHeaders:
+          - name: Content-Type
+            value: application/json
+          - name: Host
+            value: localhost
+        path: /swirl/health/celery/
+      initialDelaySeconds: 120
+      periodSeconds: 30
+      timeoutSeconds: 10
+    readiness:
+      failureThreshold: 3
+      httpGet:
+        httpHeaders:
+          - name: Content-Type
+            value: application/json
+          - name: Host
+            value: localhost
+        path: /swirl/health/celery/
+      initialDelaySeconds: 120
+      periodSeconds: 30
+      timeoutSeconds: 10
+
+  # Persistent Volume Claim configuration
+  pvc:
+    accessModes:
+      - ReadWriteMany
+    resources:
+      requests:
+        storage: 100Mi
+
+  # Number of pod replicas (ignored if autoscaling is enabled)
+  replicaCount: 1
+
+  # Security context for the container
+  securityContext: {}
+
+  # Kubernetes Service configuration
+  service:
+    port: 8000
+    type: ClusterIP
+
+  # Service Account configuration
+  serviceAccount:
+    annotations: {}
+    create: false
+    name: ''
+
+  # Storage Class configurations for persistent storage
+  storageClass:
+    # Storage for file uploads
+    uploads:
+      allowVolumeExpansion: true
+      mountOptions:
+        - dir_mode=0777
+        - file_mode=0777
+        - uid=0
+        - gid=0
+        - mfsymlinks
+        - cache=strict
+        - actimeo=30
+      name:
+      parameters:
+        shareName:
+        skuName: Standard_LRS
+      provisioner: file.csi.azure.com
+      reclaimPolicy: Retain
+    # Storage for lease data
+    leases:
+      allowVolumeExpansion: true
+      mountOptions:
+        - dir_mode=0777
+        - file_mode=0777
+        - uid=0
+        - gid=0
+        - mfsymlinks
+        - cache=strict
+        - actimeo=30
+      name:
+      parameters:
+        shareName:
+        skuName: Standard_LRS
+      provisioner: file.csi.azure.com
+      reclaimPolicy: Retain
+
+  # Secret Provider Class for Azure Key Vault integration
+  secretProviderClass:
+    enabled: false
+
+  # Volume mounts configuration
+  volumeMounts: {}
+
+  # Node selector for pod placement
+  nodeSelector: {}
+
+  # Resource requests and limits
+  resources:
+    limits:
+      cpu: 8
+      memory: 16Gi
+    requests:
+      cpu: 4
+      memory: 10Gi
+
+  # Tolerations for pod scheduling
+  tolerations: []
+
+  # Affinity rules for pod placement
+  affinity: {}
+
+# ==============================================================================
+# Redis Cache Configuration
+# ==============================================================================
+redisCache:
+  enabled: true
+  replicaCount: 1
+  image:
+    pullPolicy: Always
+    repository: swirlai/release-redis-enterprise
+    tag: latest
+  port: 6379
+
+# ==============================================================================
+# Redis Broker Configuration (for Celery)
+# ==============================================================================
+redisBroker:
+  enabled: true
+  replicaCount: 1
+  image:
+    pullPolicy: Always
+    repository: swirlai/release-redis-enterprise
+    tag: latest
+  port: 6379
+
+# ==============================================================================
+# Apache Tika Configuration (for document parsing)
+# ==============================================================================
+tika:
+  enabled: true
+  replicaCount: 1
+  image:
+    pullPolicy: Always
+    repository: swirlai/release-tika-enterprise
+    tag: latest
+  port: 9998
+
+# ==============================================================================
+# MCP (Model Context Protocol) Proxy Configuration
+# ==============================================================================
+mcp:
+  enabled: false
+  host: "0.0.0.0"
+  replicaCount: 1
+  image:
+    pullPolicy: Always
+    repository: swirlai/release-mcp-proxy-enterprise
+    tag: latest
+  port: 9000
+  # Azure Load Balancer configuration
+  loadBalancer:
+    azureResourceGroup:
+    azurePublicIPName:
+  # Health check probes
+  probe:
+    liveness:
+      execCommand: ["/app/scripts/check-health.sh"]
+      failureThreshold: 3
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 30
+    readiness:
+      execCommand: ["/app/scripts/check-readiness.sh"]
+      failureThreshold: 3
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 30
+  # Swirl API connection settings
+  swirl:
+    api_base: "http://swirl-service.swirl.svc.cluster.local:8000"
+    api_base_path: "/api/swirl"
+    api_timeout: "30"
+
+# ==============================================================================
+# Topic Text Matcher Configuration (for text summarization/RAG)
+# ==============================================================================
+topicTextMatcher:
+  enabled: true
+  configMap:
+    envConfig:
+      WORKER_CLASS: "sync"   # Gunicorn worker class
+      WORKER_COUNT: "1"      # Number of worker processes
+      THREAD_COUNT: "2"      # Number of threads per worker
+      WORKER_TIMEOUT: "240"  # Worker timeout in seconds
+  replicaCount: 1
+  image:
+    pullPolicy: Always
+    repository: swirlai/release-topic-text-matcher-enterprise
+    tag: latest
+  port: 7029
+  resources:
+    limits:
+      cpu: 8
+      memory: "10Gi"
+    requests:
+      cpu: 4
+      memory: "5Gi"
+
+# ==============================================================================
+# Celery Worker Configuration (for background task processing)
+# ==============================================================================
+celeryWorker:
+  enabled: true
+
+  # Horizontal Pod Autoscaling for Celery workers
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    queueDepthTarget: "10.0"
+    busyRatioTarget: "1.0"
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 300
+        podValue: 1
+        periodSeconds: 60
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        podValue: 1
+        periodSeconds: 60
+
+  # Pod annotations
+  podAnnotations:
+
+  # Override for service for celery worker container start/loading script configuration
+  configMap:
+    startup:
+      swirl-celery-worker-startup.sh: ""
+  replicaCount: 1
+
+  # Resource allocation
+  resources:
+    limits:
+      cpu: 8
+      memory: "10Gi"
+    requests:
+      cpu: 4
+      memory: "5Gi"
+
+  # Health check probes
+  probe:
+    liveness:
+      execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
+      failureThreshold: 3
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 30
+    readiness:
+      execCommand: ["celery", "-A", "swirl_server", "inspect", "active"]
+      failureThreshold: 3
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 30

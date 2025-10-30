@@ -1,0 +1,12 @@
+{{- if and .Values.defaultDockerRegistry.username .Values.defaultDockerRegistry.password }}
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/dockerconfigjson
+metadata:
+  name: "docker-secret"
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+data:
+  .dockerconfigjson: {{ printf "{\"auths\":{\"%s\":{\"auth\":\"%s\",\"email\":\"%s\"}}}" .Values.defaultDockerRegistry.server (printf "%s:%s" .Values.defaultDockerRegistry.username .Values.defaultDockerRegistry.password | b64enc) .Values.defaultDockerRegistry.username | b64enc }}
+  {{- end }}

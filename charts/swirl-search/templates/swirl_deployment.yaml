@@ -1,0 +1,192 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "swirl.name" $ }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  {{- if not .Values.swirl.autoscaling.enabled }}
+  replicas: {{ .Values.swirl.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "swirl.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.swirl.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "swirl.selectorLabels" . | nindent 8 }}
+        {{- if .Values.swirl.podLabels }}
+        {{- .Values.swirl.podLabels | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+      volumes:
+      {{- if .Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
+      - name: google-credentials
+        secret:
+          defaultMode: 420
+          items:
+          - key: GOOGLE_CREDENTIALS
+            path: google-credentials.json
+          secretName: swirl-env-secrets
+      {{- end }}
+      {{- if .Values.swirl.secretProviderClass.enabled }}
+      {{- end }}
+      {{- if .Values.swirl.leaseprocessor.enabled }}
+      - name: {{ printf "%s-%s" (include "swirl.name" $) "leases-fileshare" | quote }}
+        persistentVolumeClaim:
+          claimName: {{ printf "%s-%s" (include "swirl.name" $) "leases-fileshare" | quote }}
+      {{- end }}
+      - name: {{ printf "%s-%s" (include "swirl.name" $) "init" | quote }}
+        configMap:
+          name: {{ printf "%s-%s" (include "swirl.name" $) "init-config" | quote }}
+      - name: {{ printf "%s-%s" (include "swirl.name" $) "load" | quote }}
+        configMap:
+          name: {{ printf "%s-%s" (include "swirl.name" $) "load-config" | quote }}
+      - name: {{ printf "%s-%s" (include "swirl.name" $) "uploads-fileshare"| quote  }}
+        persistentVolumeClaim:
+          claimName: {{ printf "%s-%s" (include "swirl.name" $) "uploads-fileshare" | quote }}
+      - name: {{ printf "%s-%s" (include "swirl.name" $) "logs" | quote }}
+        hostPath:
+          path: {{ printf "%s%s-%s" "/var/log/" (include "swirl.name" $) "logs" | quote }}
+      {{- if .Values.swirl.secretProviderClass.enabled }}
+      - name: secrets-store-inline
+        csi:
+          driver: secrets-store.csi.k8s.io
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: {{ printf "%s-%s" (include "swirl.name" .) "secret-store" | quote }}
+      {{- end }}
+      {{- if .Values.swirl.serviceAccount.create }}
+      serviceAccountName: {{- include "swirl.serviceAccountName" $ }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.swirl.podSecurityContext | nindent 8 }}
+      {{- if .Values.swirl.initContainer.enabled }}
+      initContainers:
+        - name: {{ printf "%s-init" (include "swirl.name" $) }}
+          securityContext:
+            {{- toYaml .Values.swirl.securityContext | nindent 12 }}
+          image: "{{  .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ default "ifNotPresent" .Values.swirl.image.pullPolicy | quote }}
+          command:
+          {{- if .Values.swirl.initContainer.command }}
+            {{- with .Values.swirl.initContainer.command }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else }}
+            ["/bin/bash", "/tmp/swirl-init.sh"]
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
+            - secretRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-secrets" | quote }}
+          volumeMounts:
+          - mountPath: /app/logs
+            name: {{ printf "%s-%s" (include "swirl.name" $) "logs" | quote }}
+          - name: {{ printf "%s-%s" (include "swirl.name" $) "init" | quote }}
+            mountPath: /tmp/
+      {{- end }}
+      containers:
+        - name: {{ include "swirl.name" $ }}
+          securityContext:
+            {{- toYaml .Values.swirl.securityContext | nindent 12 }}
+          image: "{{  .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default "main" }}"
+          imagePullPolicy: {{ default "ifNotPresent" .Values.swirl.image.pullPolicy | quote }}
+          command:
+          {{- if .Values.swirl.command }}
+            {{- with .Values.swirl.command }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else }}
+            ["/bin/bash", "/tmp/swirl-load.sh"]
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ default "8000" .Values.swirl.service.port }}
+              protocol: TCP
+          {{- if and (hasKey .Values.swirl.probe "liveness") (not (empty .Values.swirl.probe.liveness)) }}
+          livenessProbe:
+            httpGet:
+              path: {{ default "/swirl/health/celery/" .Values.swirl.probe.liveness.path | quote }}
+              port: {{ default 8000 .Values.swirl.service.port }}
+              {{- $defaultHeaders := list (dict "name" "Content-Type" "value" "application/json") (dict "name" "Host" "value" "localhost") }}
+              {{- $headers := .Values.swirl.probe.liveness.httpGet.httpHeaders | default $defaultHeaders }}
+              httpHeaders:
+              {{- range $headers }}
+                - name: {{ .name }}
+                  value: {{ .value }}
+              {{- end }}
+            initialDelaySeconds: {{ default 120 .Values.swirl.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ default 30 .Values.swirl.probe.liveness.periodSeconds }}
+            failureThreshold: {{ default 1 .Values.swirl.probe.liveness.failureThreshold }}
+            timeoutSeconds: {{ default 10 .Values.swirl.probe.liveness.timeoutSeconds }}
+          {{- end }}
+          {{- if and (hasKey .Values.swirl.probe "readiness") (not (empty .Values.swirl.probe.readiness)) }}
+          readinessProbe:
+            httpGet:
+              path: {{ default "/swirl/health/celery/" .Values.swirl.probe.liveness.path | quote }}
+              port: {{ default 8000 .Values.swirl.service.port }}
+              {{- $defaultHeaders := list (dict "name" "Content-Type" "value" "application/json") (dict "name" "Host" "value" "localhost") }}
+              {{- $headers := .Values.swirl.probe.liveness.httpGet.httpHeaders | default $defaultHeaders }}
+              httpHeaders:
+              {{- range $headers }}
+                - name: {{ .name }}
+                  value: {{ .value }}
+              {{- end }}
+            initialDelaySeconds: {{ default 120 .Values.swirl.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ default 30 .Values.swirl.probe.liveness.periodSeconds }}
+            failureThreshold: {{ default 1 .Values.swirl.probe.liveness.failureThreshold }}
+            timeoutSeconds: {{ default 10 .Values.swirl.probe.liveness.timeoutSeconds }}
+          {{- end }}
+          volumeMounts:
+          {{- if .Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
+          - mountPath: /app/secrets
+            name: google-credentials
+            readOnly: true          
+          {{- end }}
+          - name: {{ printf "%s-%s" (include "swirl.name" $) "load" | quote }}
+            mountPath: /tmp/
+          {{- if .Values.swirl.leaseprocessor.enabled }}
+          - name: {{ printf "%s-%s" (include "swirl.name" $) "leases-fileshare" | quote }}
+            mountPath: /app/protected_media/leases
+            readOnly: false
+          {{- end }}
+          - name: {{ printf "%s-%s" (include "swirl.name" $) "uploads-fileshare" | quote }}
+            mountPath: /app/uploads
+            readOnly: false
+          - mountPath: /app/logs
+            name: {{ printf "%s-%s" (include "swirl.name" $) "logs" | quote }}
+          {{- if .Values.swirl.secretProviderClass.enabled }}
+          - name: secrets-store-inline
+            mountPath: "/mnt/secrets-store"
+            readOnly: true
+          {{- end }}
+          {{- with .Values.swirl.volumeMounts }}
+          {{- toYaml . | nindent 8 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
+            - secretRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-secrets" | quote }}
+          resources:
+            {{- toYaml .Values.swirl.resources | nindent 12 }}
+      {{- with .Values.swirl.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swirl.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swirl.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

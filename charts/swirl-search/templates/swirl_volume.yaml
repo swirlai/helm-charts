@@ -1,0 +1,77 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ default (printf "%s-%s" (include "swirl.name" $) "uploads-fileshare") .Values.swirl.storageClass.uploads.name | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+provisioner: {{ default "file.csi.azure.com" .Values.swirl.storageClass.uploads.provisioner | quote }}
+allowVolumeExpansion: {{ default "true" .Values.swirl.storageClass.uploads.allowVolumeExpansion }}
+reclaimPolicy: {{ default "Retain" .Values.swirl.storageClass.uploads.reclaimPolicy | quote }}
+mountOptions:
+{{- $mountOptions := .Values.swirl.storageClass.uploads.mountOptions | default (list "dir_mode=0777" "file_mode=0777" "uid=0" "gid=0" "mfsymlinks" "cache=strict" "actimeo=30") }}
+{{- range $mountOptions }}
+  - {{ . }}
+{{- end }}
+parameters:
+  shareName: {{ default (printf "%s-%s" (include "swirl.name" $) "uploads-fileshare") .Values.swirl.storageClass.uploads.parameters.shareName | quote }}
+  skuName: {{ default "Standard_LRS" .Values.swirl.storageClass.uploads.parameters.skuName | quote }}
+{{- if .Values.swirl.leaseprocessor.enabled }}
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ default (printf "%s-%s" (include "swirl.name" $) "leases-fileshare") .Values.swirl.storageClass.leases.name | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+provisioner: {{ default "file.csi.azure.com" .Values.swirl.storageClass.leases.provisioner | quote }}
+allowVolumeExpansion: {{ default "true" .Values.swirl.storageClass.leases.allowVolumeExpansion }}
+reclaimPolicy: {{ default "Retain" .Values.swirl.storageClass.leases.reclaimPolicy | quote }}
+mountOptions:
+{{- $mountOptions := .Values.swirl.storageClass.leases.mountOptions | default (list "dir_mode=0777" "file_mode=0777" "uid=0" "gid=0" "mfsymlinks" "cache=strict" "actimeo=30") }}
+{{- range $mountOptions }}
+  - {{ . }}
+{{- end }}
+parameters:
+  shareName: {{ default (printf "%s-%s" (include "swirl.name" $) "leases-fileshare") .Values.swirl.storageClass.leases.parameters.shareName | quote }}
+  skuName: {{ default "Standard_LRS" .Values.swirl.storageClass.leases.parameters.skuName | quote }}
+{{- end }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ default (printf "%s-%s" (include "swirl.name" $) "uploads-fileshare") .Values.swirl.storageClass.uploads.name | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  accessModes:
+{{- $accessModes := .Values.swirl.pvc.accessModes | default (list "ReadWriteMany") }}
+{{- range $accessModes }}
+  - {{ . }}
+{{- end }}
+  storageClassName: {{ default (printf "%s-%s" (include "swirl.name" $) "uploads-fileshare") .Values.swirl.storageClass.uploads.name | quote }}
+  resources:
+    requests:
+      storage: {{ default "100Mi" .Values.swirl.pvc.resources.requests.storage | quote }}
+{{- if .Values.swirl.leaseprocessor.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ default (printf "%s-%s" (include "swirl.name" $) "leases-fileshare") .Values.swirl.storageClass.leases.name | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  accessModes:
+{{- $accessModes := .Values.swirl.pvc.accessModes | default (list "ReadWriteMany") }}
+{{- range $accessModes }}
+  - {{ . }}
+{{- end }}
+  storageClassName: {{ default (printf "%s-%s" (include "swirl.name" $) "leases-fileshare") .Values.swirl.storageClass.leases.name | quote }}
+  resources:
+    requests:
+      storage: {{ default "100Mi" .Values.swirl.pvc.resources.requests.storage | quote }}
+  {{- end }}

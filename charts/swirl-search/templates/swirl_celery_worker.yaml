@@ -1,0 +1,92 @@
+{{- if .Values.celeryWorker.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  {{- if not .Values.celeryWorker.autoscaling.enabled }}
+  replicas: {{ .Values.celeryWorker.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "celery-worker"
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      {{- with .Values.celeryWorker.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        app.kubernetes.io/name: "celery-worker"
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+      volumes:
+      {{- if .Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
+      - name: google-credentials
+        secret:
+          defaultMode: 420
+          items:
+          - key: GOOGLE_CREDENTIALS
+            path: google-credentials.json
+          secretName: swirl-env-secrets
+      {{- end }}
+      - name: {{ printf "%s-%s" (include "swirl.name" $) "celery-worker-startup" | quote }}
+        configMap:
+          name: {{ printf "%s-%s" (include "swirl.name" $) "celery-worker-startup" | quote }}
+      containers:
+        - name: celery-worker
+          image: "{{  .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default "main" }}"
+          imagePullPolicy: {{ default "Always" .Values.swirl.image.pullPolicy | quote }}
+          command: 
+          {{- if .Values.celeryWorker.command }}
+            {{- with .Values.celeryWorker.command }}
+              {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- else }}
+            ["/bin/bash", "/tmp/swirl-celery-worker-startup.sh"]
+          {{- end }}
+          livenessProbe:
+            exec:
+              command: {{ .Values.celeryWorker.probe.liveness.execCommand }}
+            initialDelaySeconds: {{ default 30 .Values.celeryWorker.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ default 15 .Values.celeryWorker.probe.liveness.periodSeconds }}
+            failureThreshold: {{ default 3 .Values.celeryWorker.probe.liveness.failureThreshold }}
+            timeoutSeconds: {{ default 30 .Values.celeryWorker.probe.liveness.timeoutSeconds }}
+          readinessProbe:
+            exec:
+              command: ["celery", "-A", "swirl_server", "inspect", "active"]
+            initialDelaySeconds: {{ default 30 .Values.celeryWorker.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ default 15 .Values.celeryWorker.probe.liveness.periodSeconds }}
+            failureThreshold: {{ default 3 .Values.celeryWorker.probe.liveness.failureThreshold }}
+            timeoutSeconds: {{ default 30 .Values.celeryWorker.probe.liveness.timeoutSeconds }}
+          envFrom:
+            - configMapRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
+            - secretRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-secrets" | quote }}
+          volumeMounts:
+          {{- if .Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
+          - mountPath: /app/secrets
+            name: google-credentials
+            readOnly: true          
+          {{- end }}          
+          - name: {{ printf "%s-%s" (include "swirl.name" $) "celery-worker-startup" | quote }}
+            mountPath: /tmp/
+          resources:
+            limits:
+              cpu: {{ default 8 .Values.celeryWorker.resources.limits.cpu }}
+              memory: {{ default "10Gi" .Values.celeryWorker.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ default 4 .Values.celeryWorker.resources.requests.cpu }}
+              memory: {{ default "5Gi" .Values.celeryWorker.resources.requests.memory | quote }}
+{{- end }}
