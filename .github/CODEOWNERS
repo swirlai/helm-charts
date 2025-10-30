@@ -1,1 +1,10 @@
-/ @swirl-devops
+# Helm Charts Repository Code Owners
+
+# Root and all files - owned by swirl-devops team
+* @swirlai/swirl-devops
+
+# Charts directory - owned by swirl-devops team
+/charts/ @swirlai/swirl-devops
+
+# Workflows - owned by swirl-devops team
+/.github/workflows/ @swirlai/swirl-devops
