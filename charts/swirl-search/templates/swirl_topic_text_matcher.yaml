@@ -1,0 +1,54 @@
+{{- if .Values.topicTextMatcher.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: topic-text-matcher
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ .Values.topicTextMatcher.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "topic-text-matcher"
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "topic-text-matcher"
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: topic-text-matcher
+          image: "{{ default "swirlai/swirl-integrations" .Values.topicTextMatcher.image.repository }}:{{ .Values.topicTextMatcher.image.tag | default "topic-text-matcher" }}"
+          imagePullPolicy: {{ default "Always" .Values.topicTextMatcher.image.pullPolicy | quote }}
+          envFrom:
+            - configMapRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "ttm-env-config" | quote }}
+          ports:
+            - containerPort: {{ default 7029 .Values.topicTextMatcher.port }}
+          resources:
+            limits:
+              cpu: {{ default 8 .Values.topicTextMatcher.resources.limits.cpu }}
+              memory: {{ default "10Gi" .Values.topicTextMatcher.resources.limits.memory | quote }}
+            requests:
+              cpu: {{ default 4 .Values.topicTextMatcher.resources.requests.cpu }}
+              memory: {{ default "5Gi" .Values.topicTextMatcher.resources.requests.memory | quote }}
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: topic-text-matcher
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: "topic-text-matcher"
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - protocol: TCP
+      port: {{ default 7029 .Values.topicTextMatcher.port }}
+      targetPort: {{ default 7029 .Values.topicTextMatcher.port }}
+{{- end }}

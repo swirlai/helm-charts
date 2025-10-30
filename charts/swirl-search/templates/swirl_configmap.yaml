@@ -1,0 +1,84 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+data:
+  USE_SEPARATE_CELERY_WORKER: {{ .Values.celeryWorker.enabled | quote }}
+{{- with .Values.swirl.configMap.envConfig }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" $) "init-config" | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+data:
+  swirl-init.sh: |-
+{{- if and .Values.swirl.configMap.initConfig (hasKey .Values.swirl.configMap.initConfig "swirl-init.sh") }}
+    {{ index .Values.swirl.configMap.initConfig "swirl-init.sh" | nindent 4 }}
+{{- else }}
+    {{ .Files.Get "files/scripts/swirl-init.sh" | nindent 4 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" $) "load-config" | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+data:
+  swirl-load.sh: |-
+{{- if and .Values.swirl.configMap.loadConfig (hasKey .Values.swirl.configMap.loadConfig "swirl-load.sh") }}
+    {{ index .Values.swirl.configMap.loadConfig "swirl-load.sh" | nindent 4 }}
+{{- else }}
+    {{ .Files.Get "files/scripts/swirl-load.sh" | nindent 4 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp-config" | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+data:
+  swirl-msal-sp.sh: |-
+{{- if and .Values.swirl.configMap.msalSpConfig (hasKey .Values.swirl.configMap.msalSpConfig "swirl-msal-sp.sh") }}
+    {{ index .Values.swirl.configMap.msalSpConfig "swirl-msal-sp.sh" | nindent 4 }}
+{{- else }}
+    {{ .Files.Get "files/scripts/swirl-install-init-job.sh" | nindent 4 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" $) "ttm-env-config" | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+data:
+{{- with .Values.topicTextMatcher.configMap.envConfig }}
+  {{- toYaml . | nindent 2 }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" $) "celery-worker-startup" | quote }}
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+data:
+  swirl-celery-worker-startup.sh: |-
+{{- if and .Values.celeryWorker.configMap.startup (hasKey .Values.celeryWorker.configMap.startup "swirl-celery-worker-startup.sh") }}
+    {{ index .Values.celeryWorker.configMap.startup "swirl-celery-worker-startup.sh" | nindent 4 }}
+{{- else }}
+    {{ .Files.Get "files/scripts/swirl-celery-worker-startup.sh" | nindent 4 }}
+{{- end }}

@@ -1,0 +1,96 @@
+{{- if .Values.swirl.job.enabled -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" .) "post-deploy" | quote }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "-1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      name: {{ printf "%s-%s" (include "swirl.name" .) "post-deploy-job" | quote }}
+      labels:
+        sidecar.istio.io/inject: "false"
+        {{- include "common.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "swirl.imagePullSecrets" (dict "context" .) | nindent 6 }}
+      {{- if .Values.swirl.serviceAccount.create }}
+      serviceAccountName: {{ include "swirl.serviceAccountName" $ }}
+      {{- end }}
+      volumes:
+        - name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp" | quote }}
+          configMap:
+            name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp-config" | quote }}
+            defaultMode: 420
+        {{- if .Values.swirl.secretProviderClass.enabled }}
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ printf "%s-%s" (include "swirl.name" .) "secret-store" | quote }}
+        {{- end }}
+      initContainers:
+        - name: wait-for-swirl
+          securityContext:
+            {{- toYaml .Values.swirl.securityContext | nindent 12 }}
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              export TARGET=http://{{ printf "%s-%s" (include "swirl.name" .) "service" }}.{{ default (include "swirl.name" .) .Values.namespace }}.svc.cluster.local:8000/swirl/health/celery/
+              echo "Checking $TARGET"
+              until curl -f $TARGET >/dev/null 2>&1; do
+                echo "Swirl service not ready, waiting..."
+                sleep 5
+              done
+              echo "Swirl service is ready!"
+      containers:
+        - name: {{ printf "%s-%s" (include "swirl.name" .) "post-deploy-job" | quote }}
+          securityContext:
+            {{- toYaml .Values.swirl.securityContext | nindent 12 }}
+          image: "{{ .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default "main" }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.swirl.image.pullPolicy | quote }}
+          {{- if .Values.swirl.job.command }}
+          command:
+            {{- toYaml .Values.swirl.job.command | nindent 12 }}
+          {{- else }}
+          command:
+            - "/bin/bash"
+            - "/tmp/swirl-msal-sp.sh"
+          {{- end }}
+          volumeMounts:
+            - name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp" | quote }}
+              mountPath: /tmp/
+            {{- if .Values.swirl.secretProviderClass.enabled }}
+            - name: secrets-store-inline
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+            {{- end }}
+            {{- with .Values.swirl.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
+            - secretRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-secrets" | quote }}
+      {{- with .Values.swirl.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swirl.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swirl.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  {{- end }}

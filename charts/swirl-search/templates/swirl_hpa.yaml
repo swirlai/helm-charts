@@ -1,0 +1,89 @@
+{{- if .Values.swirl.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" .) "hpa" | quote }}
+  namespace: {{ default (include "swirl.name" .) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "swirl.name" . }}
+  minReplicas: {{ .Values.swirl.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.swirl.autoscaling.maxReplicas }}
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: celery_queue_depth
+        target:
+          type: Value
+          value: {{ .Values.swirl.autoscaling.queueDepthTarget | quote }}
+    - type: External
+      external:
+        metric:
+          name: celery_workers_busy_ratio
+        target:
+          type: Value
+          value: {{ .Values.swirl.autoscaling.busyRatioTarget | quote }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.swirl.autoscaling.behavior.scaleUp.stabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: {{ .Values.swirl.autoscaling.behavior.scaleUp.podValue }}
+          periodSeconds: {{ .Values.swirl.autoscaling.behavior.scaleUp.periodSeconds }}
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.swirl.autoscaling.behavior.scaleDown.stabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: {{ .Values.swirl.autoscaling.behavior.scaleDown.podValue }}
+          periodSeconds: {{ .Values.swirl.autoscaling.behavior.scaleDown.periodSeconds }}
+  {{- end }}
+---
+  {{- if and .Values.celeryWorker.enabled .Values.celeryWorker.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" .) "celery-worker-hpa" | quote }}
+  namespace: {{ default (include "swirl.name" .) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: celery-worker
+  minReplicas: {{ .Values.celeryWorker.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.celeryWorker.autoscaling.maxReplicas }}
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: celery_queue_depth
+        target:
+          type: Value
+          value: {{ .Values.celeryWorker.autoscaling.queueDepthTarget | quote }}
+    - type: External
+      external:
+        metric:
+          name: celery_workers_busy_ratio
+        target:
+          type: Value
+          value: {{ .Values.celeryWorker.autoscaling.busyRatioTarget | quote }}
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleUp.stabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: {{ .Values.celeryWorker.autoscaling.behavior.scaleUp.podValue }}
+          periodSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleUp.periodSeconds }}
+    scaleDown:
+      stabilizationWindowSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleDown.stabilizationWindowSeconds }}
+      policies:
+        - type: Pods
+          value: {{ .Values.celeryWorker.autoscaling.behavior.scaleDown.podValue }}
+          periodSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleDown.periodSeconds }}
+  {{- end }}

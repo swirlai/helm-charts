@@ -1,0 +1,44 @@
+{{- if .Values.tika.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tika
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  replicas: {{ .Values.tika.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: "tika"
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: "tika"
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: tika
+          image: "{{ default "swirlai/swirl-integrations" .Values.tika.image.repository }}:{{ .Values.tika.image.tag | default "swirl-tika" }}"
+          imagePullPolicy: {{ default "Always" .Values.tika.image.pullPolicy | quote }}
+          ports:
+            - containerPort: {{ default 9998 .Values.tika.port }}
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tika
+  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  labels:
+    {{ include "common.labels" $ | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: "tika"
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - protocol: TCP
+      port: {{ default 9998 .Values.tika.port }}
+      targetPort: {{ default 9998 .Values.tika.port }}
+{{- end }}
