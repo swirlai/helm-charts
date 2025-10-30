@@ -18,64 +18,64 @@ spec:
         {{- include "common.labels" . | nindent 8 }}
     spec:
       restartPolicy: Never
-      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
-      volumes:
-      - name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp" | quote }}
-        configMap:
-          name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp-config" | quote }}    
-          defaultMode: 420
-      {{- if .Values.swirl.secretProviderClass.enabled }}
-      - name: secrets-store-inline
-        csi:
-          driver: secrets-store.csi.k8s.io
-          readOnly: true
-          volumeAttributes:
-            secretProviderClass: {{ printf "%s-%s" (include "swirl.name" .) "secret-store" | quote }}
-      {{- end }}
+      {{- include "swirl.imagePullSecrets" (dict "context" .) | nindent 6 }}
       {{- if .Values.swirl.serviceAccount.create }}
-      serviceAccountName: {{- include "swirl.serviceAccountName" $ }}
+      serviceAccountName: {{ include "swirl.serviceAccountName" $ }}
       {{- end }}
+      volumes:
+        - name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp" | quote }}
+          configMap:
+            name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp-config" | quote }}
+            defaultMode: 420
+        {{- if .Values.swirl.secretProviderClass.enabled }}
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ printf "%s-%s" (include "swirl.name" .) "secret-store" | quote }}
+        {{- end }}
       initContainers:
         - name: wait-for-swirl
-      securityContext:
-      {{- toYaml .Values.swirl.securityContext | nindent 12 }}
-      image: curlimages/curl:latest
-      command:
-        - /bin/sh
-        - -c
-        - |
-          export TARGET=http://{{ printf "%s-%s" (include "swirl.name" .) "service" }}.{{ default (include "swirl.name" .) .Values.namespace }}.svc.cluster.local:8000/swirl/health/celery/
-          echo "Checking $TARGET"
-          until curl -f $TARGET >/dev/null 2>&1; do
-            echo "Swirl service not ready, waiting..."
-            sleep 5
-          done
-          echo "Swirl service is ready!"
+          securityContext:
+            {{- toYaml .Values.swirl.securityContext | nindent 12 }}
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              export TARGET=http://{{ printf "%s-%s" (include "swirl.name" .) "service" }}.{{ default (include "swirl.name" .) .Values.namespace }}.svc.cluster.local:8000/swirl/health/celery/
+              echo "Checking $TARGET"
+              until curl -f $TARGET >/dev/null 2>&1; do
+                echo "Swirl service not ready, waiting..."
+                sleep 5
+              done
+              echo "Swirl service is ready!"
       containers:
         - name: {{ printf "%s-%s" (include "swirl.name" .) "post-deploy-job" | quote }}
           securityContext:
             {{- toYaml .Values.swirl.securityContext | nindent 12 }}
-          image: "{{  .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default "main" }}"
-          imagePullPolicy: {{ default "ifNotPresent" .Values.swirl.image.pullPolicy | quote }}
-          command:
+          image: "{{ .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default "main" }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.swirl.image.pullPolicy | quote }}
           {{- if .Values.swirl.job.command }}
-            {{- with .Values.swirl.job.command }}
-              {{- toYaml . | nindent 12 }}
-            {{- end }}
+          command:
+            {{- toYaml .Values.swirl.job.command | nindent 12 }}
           {{- else }}
-            ["/bin/bash","/tmp/swirl-msal-sp.sh"]
+          command:
+            - "/bin/bash"
+            - "/tmp/swirl-msal-sp.sh"
           {{- end }}
           volumeMounts:
             - name: {{ printf "%s-%s" (include "swirl.name" $) "msal-sp" | quote }}
               mountPath: /tmp/
-          {{- if .Values.swirl.secretProviderClass.enabled }}
-          - name: secrets-store-inline
-            mountPath: "/mnt/secrets-store"
-            readOnly: true
-          {{- end }}
-          {{- with .Values.swirl.volumeMounts }}
-          {{- toYaml . | nindent 8 }}
-          {{- end }}
+            {{- if .Values.swirl.secretProviderClass.enabled }}
+            - name: secrets-store-inline
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+            {{- end }}
+            {{- with .Values.swirl.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           envFrom:
             - configMapRef:
                 name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
