@@ -1,0 +1,24 @@
+# Configuration for helm/chart-releaser-action
+owner: swirlai
+git-repo: helm-charts
+
+# Generate release notes from commit messages
+generate-release-notes: true
+
+# Package charts in the specified directory
+charts-dir: charts
+
+# Skip publishing if the chart version already exists
+skip-existing: true
+
+# Pages branch where index.yaml will be stored
+pages-branch: gh-pages
+
+# Pages directory for index.yaml
+pages-index-path: index.yaml
+
+# Release name template
+release-name-template: "{{ .Name }}-{{ .Version }}"
+
+# Commit message template for index updates
+commit-message: "Update Helm repository index [skip ci]"

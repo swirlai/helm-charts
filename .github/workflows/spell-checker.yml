@@ -1,0 +1,42 @@
+name: Check Spelling
+
+# Trigger to only run this workflow automatically on docs/ directory changes
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - "docs/**"
+
+  pull_request:
+    # Run for all PRs to develop - means PR cannot merge until unit tests pass
+    branches:
+      - develop
+      - main
+    # Skip non-code changes
+    paths-ignore:
+      - '.github/**'
+      - 'integrations/**'
+      - 'swirl-infra/**'
+      - 'db.sqlite3.dist'
+  # Allows manual run of this workflow from the Actions tab (on any branch)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Spelling
+        uses: crate-ci/typos@master  # From here:  https://github.com/crate-ci/typos
+        with:
+          config: ./.github/workflows/typos.toml
+          write_changes: true  # Writes changes on the Action's local checkout
