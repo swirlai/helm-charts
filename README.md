@@ -18,17 +18,17 @@ helm search repo swirl
 
 Install the Swirl Search Chart:
 ```bash
-helm install my-swirl swirl/swirl-search -f custom-values.yaml --namespace swirl --create-namespace
+helm install my-swirl swirl/swirl -f custom-values.yaml --namespace swirl --create-namespace
 ```
 
 View chart information:
 ```bash
-helm show chart swirl/swirl-search
+helm show chart swirl/swirl
 ```
 
 Show all Information including values:
 ```bash
-helm show all swirl/swirl-search
+helm show all swirl/swirl
 ```
 
 
@@ -41,7 +41,7 @@ helm show all swirl/swirl-search
 
 ## Available Charts
 
-### swirl-search
+### swirl
 AI-powered search platform for Azure Kubernetes Service (AKS)
 
 - **Version**: 1.0.0
