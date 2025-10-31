@@ -1,5 +1,5 @@
 apiVersion: v2
-name: swirl-search
+name: swirl
 description: A Helm chart for deploying Swirl AI-powered search platform on Azure Kubernetes Service (AKS)
 type: application
 version: 0.1.20
