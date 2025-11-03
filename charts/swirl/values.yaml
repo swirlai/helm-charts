@@ -358,7 +358,6 @@ celeryWorker:
   # Override for service for celery worker container start/loading script configuration
   configMap:
     startup:
-      swirl-celery-worker-startup.sh: ""
   replicaCount: 1
 
   # Resource allocation
