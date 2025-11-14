@@ -1,19 +1,22 @@
 {{- if .Values.celeryWorker.enabled -}}
+{{- range $name, $cfg := .Values.celeryWorker.queues }}
+{{- if $cfg.enabled }}
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: celery-worker
-  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  name: celery-worker-{{ $name }}
+  namespace: {{ default (include "swirl.name" $) $.Values.namespace | quote }}
   labels:
     {{ include "common.labels" $ | nindent 4 }}
 spec:
-  {{- if not .Values.celeryWorker.autoscaling.enabled }}
-  replicas: {{ .Values.celeryWorker.replicaCount }}
+  {{- if not $.Values.celeryWorker.autoscaling.enabled }}
+  replicas: {{ $.Values.celeryWorker.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: "celery-worker"
-      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
   strategy:
     rollingUpdate:
       maxSurge: 25%
@@ -26,10 +29,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        app.kubernetes.io/name: "celery-worker"
-        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/name: "celery-worker-{{ $name }}"
+        app.kubernetes.io/instance: {{ $.Release.Name }}
     spec:
-      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+      {{- include "swirl.imagePullSecrets" (dict "context" $) }}
       volumes:
       {{- if $.Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
       - name: google-credentials
@@ -44,12 +47,12 @@ spec:
         configMap:
           name: {{ printf "%s-%s" (include "swirl.name" $) "celery-worker-startup" | quote }}
       containers:
-        - name: celery-worker
+        - name: celery-worker-{{ $name }}
           image: "{{ $.Values.swirl.image.repository }}:{{ $.Values.swirl.image.tag | default "main" }}"
           imagePullPolicy: {{ default "Always" $.Values.swirl.image.pullPolicy | quote }}
           command: 
-          {{- if .Values.celeryWorker.command }}
-            {{- with .Values.celeryWorker.command }}
+          {{- if $.Values.celeryWorker.command }}
+            {{- with $.Values.celeryWorker.command }}
               {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- else }}
@@ -75,7 +78,7 @@ spec:
             - secretRef:
                 name: {{ printf "%s-%s" (include "swirl.name" $) "env-secrets" | quote }}
           volumeMounts:
-          {{- if .Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
+          {{- if $.Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
           - mountPath: /app/secrets
             name: google-credentials
             readOnly: true          
@@ -84,9 +87,11 @@ spec:
             mountPath: /tmp/
           resources:
             limits:
-              cpu: {{ default 8 .Values.celeryWorker.resources.limits.cpu }}
+              cpu: {{ default 8 $.Values.celeryWorker.resources.limits.cpu }}
               memory: {{ default "10Gi" $.Values.celeryWorker.resources.limits.memory | quote }}
             requests:
-              cpu: {{ default 4 .Values.celeryWorker.resources.requests.cpu }}
+              cpu: {{ default 4 $.Values.celeryWorker.resources.requests.cpu }}
               memory: {{ default "5Gi" $.Values.celeryWorker.resources.requests.memory | quote }}
+{{- end }}
+{{- end }}
 {{- end }}
