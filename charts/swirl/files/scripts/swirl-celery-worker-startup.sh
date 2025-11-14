@@ -40,7 +40,7 @@ get_default_workers_concurrency_config() {
 }
 
 celery -A swirl_server worker \
-  -Q default,health_check \
+  -Q $CELERY_QUEUES,health_check \
   --loglevel=$LOGLEVEL \
   --without-heartbeat \
   --without-gossip \

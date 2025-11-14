@@ -21,7 +21,7 @@ spec:
     type: RollingUpdate
   template:
     metadata:
-      {{- with .Values.celeryWorker.podAnnotations }}
+      {{- with $.Values.celeryWorker.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -31,7 +31,7 @@ spec:
     spec:
       {{- include "swirl.imagePullSecrets" (dict "context" .) }}
       volumes:
-      {{- if .Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
+      {{- if $.Values.swirl.configMap.envConfig.GOOGLE_APPLICATION_CREDENTIALS }}
       - name: google-credentials
         secret:
           defaultMode: 420
@@ -45,8 +45,8 @@ spec:
           name: {{ printf "%s-%s" (include "swirl.name" $) "celery-worker-startup" | quote }}
       containers:
         - name: celery-worker
-          image: "{{  .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default "main" }}"
-          imagePullPolicy: {{ default "Always" .Values.swirl.image.pullPolicy | quote }}
+          image: "{{ $.Values.swirl.image.repository }}:{{ $.Values.swirl.image.tag | default "main" }}"
+          imagePullPolicy: {{ default "Always" $.Values.swirl.image.pullPolicy | quote }}
           command: 
           {{- if .Values.celeryWorker.command }}
             {{- with .Values.celeryWorker.command }}
@@ -57,18 +57,18 @@ spec:
           {{- end }}
           livenessProbe:
             exec:
-              command: {{ .Values.celeryWorker.probe.liveness.execCommand }}
-            initialDelaySeconds: {{ default 30 .Values.celeryWorker.probe.liveness.initialDelaySeconds }}
-            periodSeconds: {{ default 15 .Values.celeryWorker.probe.liveness.periodSeconds }}
-            failureThreshold: {{ default 3 .Values.celeryWorker.probe.liveness.failureThreshold }}
-            timeoutSeconds: {{ default 30 .Values.celeryWorker.probe.liveness.timeoutSeconds }}
+              command: {{ $.Values.celeryWorker.probe.liveness.execCommand }}
+            initialDelaySeconds: {{ default 30 $.Values.celeryWorker.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ default 15 $.Values.celeryWorker.probe.liveness.periodSeconds }}
+            failureThreshold: {{ default 3 $.Values.celeryWorker.probe.liveness.failureThreshold }}
+            timeoutSeconds: {{ default 30 $.Values.celeryWorker.probe.liveness.timeoutSeconds }}
           readinessProbe:
             exec:
               command: ["celery", "-A", "swirl_server", "inspect", "active"]
-            initialDelaySeconds: {{ default 30 .Values.celeryWorker.probe.liveness.initialDelaySeconds }}
-            periodSeconds: {{ default 15 .Values.celeryWorker.probe.liveness.periodSeconds }}
-            failureThreshold: {{ default 3 .Values.celeryWorker.probe.liveness.failureThreshold }}
-            timeoutSeconds: {{ default 30 .Values.celeryWorker.probe.liveness.timeoutSeconds }}
+            initialDelaySeconds: {{ default 30 $.Values.celeryWorker.probe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ default 15 $.Values.celeryWorker.probe.liveness.periodSeconds }}
+            failureThreshold: {{ default 3 $.Values.celeryWorker.probe.liveness.failureThreshold }}
+            timeoutSeconds: {{ default 30 $.Values.celeryWorker.probe.liveness.timeoutSeconds }}
           envFrom:
             - configMapRef:
                 name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
@@ -85,8 +85,8 @@ spec:
           resources:
             limits:
               cpu: {{ default 8 .Values.celeryWorker.resources.limits.cpu }}
-              memory: {{ default "10Gi" .Values.celeryWorker.resources.limits.memory | quote }}
+              memory: {{ default "10Gi" $.Values.celeryWorker.resources.limits.memory | quote }}
             requests:
               cpu: {{ default 4 .Values.celeryWorker.resources.requests.cpu }}
-              memory: {{ default "5Gi" .Values.celeryWorker.resources.requests.memory | quote }}
+              memory: {{ default "5Gi" $.Values.celeryWorker.resources.requests.memory | quote }}
 {{- end }}
