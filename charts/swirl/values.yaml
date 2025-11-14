@@ -365,7 +365,7 @@ celeryWorker:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 30
-    page_fetch:
+    pagefetch:
       enabled: true
       queues: "page_fetch"
       replicaCount: 1
