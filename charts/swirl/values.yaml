@@ -352,6 +352,16 @@ celeryWorker:
         maxReplicas: 5
         queueDepthTarget: "10.0"
         busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60          
+
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
@@ -378,8 +388,19 @@ celeryWorker:
           memory: "2Gi"
       autoscaling:
         enabled: true
-        minReplicas: 0
+        minReplicas: 1
         maxReplicas: 5
+        queueDepthTarget: "10.0"
+        busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60   
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
@@ -409,6 +430,17 @@ celeryWorker:
         enabled: true
         minReplicas: 1
         maxReplicas: 2
+        queueDepthTarget: "10.0"
+        busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60          
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
@@ -422,7 +454,17 @@ celeryWorker:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 30
-
+          queueDepthTarget: "10.0"
+          busyRatioTarget: "1.0"
+          behavior:
+            scaleUp:
+              stabilizationWindowSeconds: 300
+              podValue: 1
+              periodSeconds: 60
+            scaleDown:
+              stabilizationWindowSeconds: 300
+              podValue: 1
+              periodSeconds: 60  
     maintenance:
       enabled: true
       queues: "maintenance"
@@ -435,7 +477,20 @@ celeryWorker:
           cpu: 0.5
           memory: "2Gi"
       autoscaling:
-        enabled: false  # Horizontal Pod Autoscaling for Celery workers
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 2
+        queueDepthTarget: "10.0"
+        busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60        
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
@@ -449,22 +504,6 @@ celeryWorker:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 30
-
-  autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 3
-    queueDepthTarget: "10.0"
-    busyRatioTarget: "1.0"
-    behavior:
-      scaleUp:
-        stabilizationWindowSeconds: 300
-        podValue: 1
-        periodSeconds: 60
-      scaleDown:
-        stabilizationWindowSeconds: 300
-        podValue: 1
-        periodSeconds: 60
 
   # Pod annotations
   podAnnotations:
