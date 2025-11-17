@@ -24,7 +24,7 @@ spec:
     - type: External
       external:
         metric:
-          name: celery_workers_busy_ratio_search
+          name: celery_queue_busy_ratio_search
         target:
           type: Value
           value: {{ .Values.swirl.autoscaling.busyRatioTarget | quote }}
@@ -70,7 +70,7 @@ spec:
     - type: External
       external:
         metric:
-          name: celery_workers_busy_ratio_{{ $name }}
+          name: celery_queue_busy_ratio_{{ $name }}
         target:
           type: Value
           value: {{ $.Values.celeryWorker.autoscaling.busyRatioTarget | quote }}
