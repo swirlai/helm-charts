@@ -42,48 +42,51 @@ spec:
           value: {{ .Values.swirl.autoscaling.behavior.scaleDown.podValue }}
           periodSeconds: {{ .Values.swirl.autoscaling.behavior.scaleDown.periodSeconds }}
   {{- end }}
----
   {{- if and .Values.celeryWorker.enabled .Values.celeryWorker.autoscaling.enabled }}
+  {{- range $name, $cfg := .Values.celeryWorker.queues }}
+---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ printf "%s-%s" (include "swirl.name" .) "celery-worker-hpa" | quote }}
-  namespace: {{ default (include "swirl.name" .) .Values.namespace | quote }}
+  name: {{ printf "%s-%s-%s" (include "swirl.name" $) "celery-worker-hpa" $name | quote }}
+  namespace: {{ default (include "swirl.name" $) $.Values.namespace | quote }}
   labels:
-    {{ include "common.labels" . | nindent 4 }}
+    {{ include "common.labels" $ | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: celery-worker
-  minReplicas: {{ .Values.celeryWorker.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.celeryWorker.autoscaling.maxReplicas }}
+    name: celery-worker-{{ $name }}
+  minReplicas: {{ $cfg.autoscaling.minReplicas }}
+  maxReplicas: {{ $cfg.autoscaling.maxReplicas }}
   metrics:
     - type: External
       external:
         metric:
-          name: celery_queue_depth_search
+          name: celery_queue_depth_{{ $name }}
         target:
           type: Value
-          value: {{ .Values.celeryWorker.autoscaling.queueDepthTarget | quote }}
+          value: {{ $.Values.celeryWorker.autoscaling.queueDepthTarget | quote }}
     - type: External
       external:
         metric:
-          name: celery_workers_busy_ratio_search
+          name: celery_workers_busy_ratio_{{ $name }}
         target:
           type: Value
-          value: {{ .Values.celeryWorker.autoscaling.busyRatioTarget | quote }}
+          value: {{ $.Values.celeryWorker.autoscaling.busyRatioTarget | quote }}
   behavior:
     scaleUp:
-      stabilizationWindowSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleUp.stabilizationWindowSeconds }}
+      stabilizationWindowSeconds: {{ $cfg.autoscaling.behavior.scaleUp.stabilizationWindowSeconds }}
       policies:
         - type: Pods
-          value: {{ .Values.celeryWorker.autoscaling.behavior.scaleUp.podValue }}
-          periodSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleUp.periodSeconds }}
+          value: {{ $cfg.autoscaling.behavior.scaleUp.podValue }}
+          periodSeconds: {{ $cfg.autoscaling.behavior.scaleUp.periodSeconds }}
     scaleDown:
-      stabilizationWindowSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleDown.stabilizationWindowSeconds }}
+      stabilizationWindowSeconds: {{ $cfg.autoscaling.behavior.scaleDown.stabilizationWindowSeconds }}
       policies:
         - type: Pods
-          value: {{ .Values.celeryWorker.autoscaling.behavior.scaleDown.podValue }}
-          periodSeconds: {{ .Values.celeryWorker.autoscaling.behavior.scaleDown.periodSeconds }}
+          value: {{ $cfg.autoscaling.behavior.scaleDown.podValue }}
+          periodSeconds: {{ $cfg.autoscaling.behavior.scaleDown.periodSeconds }}
   {{- end }}
+  {{- end }}
+
