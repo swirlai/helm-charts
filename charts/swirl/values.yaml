@@ -255,6 +255,13 @@ redisBroker:
     repository: swirlai/release-redis-enterprise
     tag: latest
   port: 6379
+  resources:
+    limits:
+      cpu: "400m"
+      memory: 1Gi
+    requests:
+      cpu: "300m"
+      memory: "512Mi"
 
 # ==============================================================================
 # Apache Tika Configuration (for document parsing)

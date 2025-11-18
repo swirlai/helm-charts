@@ -17,14 +17,14 @@ spec:
     - type: External
       external:
         metric:
-          name: celery_queue_depth_search
+          name: celery_queue_depth_totals
         target:
           type: Value
           value: {{ .Values.swirl.autoscaling.queueDepthTarget | quote }}
     - type: External
       external:
         metric:
-          name: celery_queue_busy_ratio_search
+          name: celery_queue_busy_ratio_totals
         target:
           type: Value
           value: {{ .Values.swirl.autoscaling.busyRatioTarget | quote }}
