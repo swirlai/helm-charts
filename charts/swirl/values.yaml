@@ -421,7 +421,7 @@ celeryWorker:
           scaleDown:
             stabilizationWindowSeconds: 300
             podValue: 1
-            periodSeconds: 60   
+            periodSeconds: 60
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
@@ -460,7 +460,7 @@ celeryWorker:
           scaleDown:
             stabilizationWindowSeconds: 300
             podValue: 1
-            periodSeconds: 60          
+            periodSeconds: 60
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
@@ -484,7 +484,7 @@ celeryWorker:
             scaleDown:
               stabilizationWindowSeconds: 300
               podValue: 1
-              periodSeconds: 60  
+              periodSeconds: 60
     maintenance:
       enabled: true
       queues: "maintenance"
@@ -510,7 +510,7 @@ celeryWorker:
           scaleDown:
             stabilizationWindowSeconds: 300
             podValue: 1
-            periodSeconds: 60        
+            periodSeconds: 60
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
