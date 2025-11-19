@@ -382,8 +382,7 @@ celeryWorker:
           scaleDown:
             stabilizationWindowSeconds: 300
             podValue: 1
-            periodSeconds: 60          
-
+            periodSeconds: 60
       probe:
         liveness:
           execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
@@ -436,7 +435,6 @@ celeryWorker:
           initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 30
-
     interactive:
       enabled: true
       queues: "interactive"
