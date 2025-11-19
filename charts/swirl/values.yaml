@@ -343,6 +343,19 @@ celeryWorker:
   enabled: true
   autoscaling:
     enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    queueDepthTarget: "10.0"
+    busyRatioTarget: "1.0"
+    behavior:
+      scaleUp:
+        stabilizationWindowSeconds: 300
+        podValue: 1
+        periodSeconds: 60
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        podValue: 1
+        periodSeconds: 60
   queues:
     search:
       enabled: true
