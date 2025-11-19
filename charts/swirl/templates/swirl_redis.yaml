@@ -74,6 +74,8 @@ spec:
           ports:
             - containerPort: {{ .Values.redisBroker.port }}
               name: redis-broker
+          resources:
+            {{- toYaml .Values.redisBroker.resources | nindent 12 }}
       {{- include "swirl.imagePullSecrets" (dict "context" .) }}
 ---
 apiVersion: v1

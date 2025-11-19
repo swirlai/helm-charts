@@ -255,6 +255,13 @@ redisBroker:
     repository: swirlai/release-redis-enterprise
     tag: latest
   port: 6379
+  resources:
+    limits:
+      cpu: "400m"
+      memory: 1Gi
+    requests:
+      cpu: "300m"
+      memory: "512Mi"
 
 # ==============================================================================
 # Apache Tika Configuration (for document parsing)
@@ -334,10 +341,8 @@ topicTextMatcher:
 # ==============================================================================
 celeryWorker:
   enabled: true
-
-  # Horizontal Pod Autoscaling for Celery workers
   autoscaling:
-    enabled: false
+    enabled: true
     minReplicas: 1
     maxReplicas: 3
     queueDepthTarget: "10.0"
@@ -351,6 +356,174 @@ celeryWorker:
         stabilizationWindowSeconds: 300
         podValue: 1
         periodSeconds: 60
+  queues:
+    search:
+      enabled: true
+      queues: "search"
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: 4
+          memory: "6Gi"
+        requests:
+          cpu: 2
+          memory: "2Gi"
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 5
+        queueDepthTarget: "10.0"
+        busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+      probe:
+        liveness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
+        readiness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "active"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
+    pagefetch:
+      enabled: true
+      queues: "page_fetch"
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: 4
+          memory: "6Gi"
+        requests:
+          cpu: 2
+          memory: "2Gi"
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 5
+        queueDepthTarget: "10.0"
+        busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+      probe:
+        liveness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
+        readiness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "active"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
+    interactive:
+      enabled: true
+      queues: "interactive"
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: 3
+          memory: "6Gi"
+        requests:
+          cpu: 0.5
+          memory: "4Gi"
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 2
+        queueDepthTarget: "10.0"
+        busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+      probe:
+        liveness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
+        readiness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "active"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
+          queueDepthTarget: "10.0"
+          busyRatioTarget: "1.0"
+          behavior:
+            scaleUp:
+              stabilizationWindowSeconds: 300
+              podValue: 1
+              periodSeconds: 60
+            scaleDown:
+              stabilizationWindowSeconds: 300
+              podValue: 1
+              periodSeconds: 60
+    maintenance:
+      enabled: true
+      queues: "maintenance"
+      replicaCount: 1
+      resources:
+        limits:
+          cpu: 1
+          memory: "4Gi"
+        requests:
+          cpu: 0.5
+          memory: "2Gi"
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+        maxReplicas: 2
+        queueDepthTarget: "10.0"
+        busyRatioTarget: "1.0"
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 300
+            podValue: 1
+            periodSeconds: 60
+      probe:
+        liveness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "ping"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
+        readiness:
+          execCommand: ["celery", "-A", "swirl_server", "inspect", "active"]
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 30
 
   # Pod annotations
   podAnnotations:
