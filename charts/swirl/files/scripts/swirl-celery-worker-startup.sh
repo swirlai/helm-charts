@@ -31,6 +31,15 @@ get_max_memory_per_child_config() {
   fi
 }
 
+get_max_tasks_per_child_config() {
+  if [ ! -z "$SWIRL_CELERY_MAX_TASKS_PER_CHILD" ]; then
+    echo "--max-tasks-per-child=$SWIRL_CELERY_TASKS_PER_CHILD"
+  else
+    echo ""
+  fi
+}
+
+
 get_default_workers_concurrency_config() {
   if [ ! -z "$CELERY_DEFAULT_WORKERS_PROCESSES_CONCURRENCY" ] && [ "$CELERY_DEFAULT_WORKERS_PROCESSES_CONCURRENCY" -ge 1 ]; then
     echo "--concurrency=$CELERY_DEFAULT_WORKERS_PROCESSES_CONCURRENCY"
@@ -44,4 +53,4 @@ celery -A swirl_server worker \
   --loglevel=$LOGLEVEL \
   --without-heartbeat \
   --without-gossip \
-  --without-mingle $(get_autoscale_config) $(get_max_memory_per_child_config) $(get_default_workers_concurrency_config) $ENABLE_EVENTS
+  --without-mingle $(get_autoscale_config) $(get_max_tasks_per_child_config) $(get_max_memory_per_child_config) $(get_default_workers_concurrency_config) $ENABLE_EVENTS
