@@ -3,6 +3,36 @@ entries:
   swirl:
   - apiVersion: v2
     appVersion: stable
+    created: "2026-01-23T17:44:07.188293417Z"
+    description: A Helm chart for deploying Swirl AI-powered search platform on Azure
+      Kubernetes Service (AKS)
+    digest: 34095874b2033a5a812162d9c4514a72a99b99b846eac7f02b7b9a6fa3a90c5f
+    home: https://swirl.today
+    keywords:
+    - swirl
+    - search
+    - ai
+    - rag
+    - azure
+    - aks
+    - enterprise-search
+    - metasearch
+    - ai-search
+    kubeVersion: '>=1.25.0-0'
+    maintainers:
+    - email: support@swirlaiconnect.com
+      name: Swirl AI Team
+      url: https://swirlaiconnect.com
+    name: swirl
+    sources:
+    - https://github.com/swirlai/swirl-search
+    - https://github.com/swirlai/helm-charts
+    type: application
+    urls:
+    - https://github.com/swirlai/helm-charts/releases/download/swirl-0.2.1/swirl-0.2.1.tgz
+    version: 0.2.1
+  - apiVersion: v2
+    appVersion: stable
     created: "2025-11-19T15:50:08.229616299Z"
     description: A Helm chart for deploying Swirl AI-powered search platform on Azure
       Kubernetes Service (AKS)
@@ -92,4 +122,4 @@ entries:
     urls:
     - https://github.com/swirlai/helm-charts/releases/download/swirl-search-0.1.20/swirl-search-0.1.20.tgz
     version: 0.1.20
-generated: "2025-11-19T15:50:08.229629935Z"
+generated: "2026-01-23T17:44:07.188311411Z"
