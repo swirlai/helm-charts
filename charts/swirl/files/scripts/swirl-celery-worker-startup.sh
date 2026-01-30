@@ -1,56 +1,48 @@
-cpu_count=$(nproc)
-CELERY_ALL_WORKERS_PROCESSES_CONCURRENCY=$((cpu_count > 1 ? cpu_count - 1 : 1))
-
-python swirl.py start pgbouncer
-LOGLEVEL=${CELERY_LOGLEVEL:-info}
-
-if [ "$LOGLEVEL" == "debug" ]; then
-  ENABLE_EVENTS="-E"
-else
-  ENABLE_EVENTS=""
+#!/usr/bin/env bash set -euo pipefail
+raw="${CELERY_QUEUES:-}"
+raw="${raw//,/ }"
+workers=()
+for q in $raw; do
+  case "$q" in
+    search)       workers+=("celery-search-worker") ;;
+    page_fetch)   workers+=("celery-pagefetch-worker") ;;
+    interactive)  workers+=("celery-interactive-worker") ;;
+    maintenance)  workers+=("celery-maintenance-worker") ;;
+    "" )          ;;
+    * )
+      echo "ERROR: unknown CELERY_QUEUES value '$q'"
+      exit 1
+      ;;
+  esac
+done
+if [ "${#workers[@]}" -eq 0 ]; then
+  echo "ERROR: CELERY_QUEUES is empty or contained no valid values."
+  echo "Valid values: search, page_fetch, interactive, maintenance"
+  exit 1
 fi
 
-SWIRL_CELERY_AUTOSCALE=${SWIRL_CELERY_AUTOSCALE:-false}
-SWIRL_CELERY_AUTOSCALE_MAX=${SWIRL_CELERY_AUTOSCALE_MAX:-10}
-SWIRL_CELERY_AUTOSCALE_MIN=${SWIRL_CELERY_AUTOSCALE_MIN:-3}
-SWIRL_CELERY_MAX_MEMORY_PER_CHILD=${SWIRL_CELERY_MAX_MEMORY_PER_CHILD:-""}
+workers+=("celery-healthcheck-worker")
 
-get_autoscale_config() {
-  if [ "$SWIRL_CELERY_AUTOSCALE" == "true" ]; then
-    echo "--autoscale=$SWIRL_CELERY_AUTOSCALE_MAX,$SWIRL_CELERY_AUTOSCALE_MIN"
-  else
-    echo ""
-  fi
+start_args=()
+
+if [[ "${SWIRL_PGBOUNCER,,}" == "true" && "${PGBOUNCER_PRODUCTION,,}" == "true" ]]; then
+  echo "pgbouncer enabled (SWIRL_PGBOUNCER=true, PGBOUNCER_PRODUCTION=true)"
+  start_args+=("pgbouncer")
+else
+  echo "pgbouncer disabled"
+fi
+
+echo "Starting workers for CELERY_QUEUES='${CELERY_QUEUES}': ${workers[*]}"
+python swirl.py start "${start_args[@]}" "${workers[@]}"
+
+_term() {
+  echo "Received termination signal; exiting."
+  exit 0
 }
 
-get_max_memory_per_child_config() {
-  if [ ! -z "$SWIRL_CELERY_MAX_MEMORY_PER_CHILD" ]; then
-    echo "--max-memory-per-child=$SWIRL_CELERY_MAX_MEMORY_PER_CHILD"
-  else
-    echo ""
-  fi
-}
+trap _term INT TERM
 
-get_max_tasks_per_child_config() {
-  if [ ! -z "$SWIRL_CELERY_MAX_TASKS_PER_CHILD" ]; then
-    echo "--max-tasks-per-child=$SWIRL_CELERY_TASKS_PER_CHILD"
-  else
-    echo ""
-  fi
-}
-
-
-get_default_workers_concurrency_config() {
-  if [ ! -z "$CELERY_DEFAULT_WORKERS_PROCESSES_CONCURRENCY" ] && [ "$CELERY_DEFAULT_WORKERS_PROCESSES_CONCURRENCY" -ge 1 ]; then
-    echo "--concurrency=$CELERY_DEFAULT_WORKERS_PROCESSES_CONCURRENCY"
-  else
-    echo "--concurrency=$CELERY_ALL_WORKERS_PROCESSES_CONCURRENCY"
-  fi
-}
-
-celery -A swirl_server worker \
-  -Q $CELERY_QUEUES,health_check \
-  --loglevel=$LOGLEVEL \
-  --without-heartbeat \
-  --without-gossip \
-  --without-mingle $(get_autoscale_config) $(get_max_tasks_per_child_config) $(get_max_memory_per_child_config) $(get_default_workers_concurrency_config) $ENABLE_EVENTS
+while true; do
+  sleep 3600 &
+  wait $!
+done
