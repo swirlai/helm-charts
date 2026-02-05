@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eo pipefail
 
 raw="${CELERY_QUEUES:-}"
 raw="${raw//,/ }"
