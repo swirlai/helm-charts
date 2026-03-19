@@ -5,13 +5,25 @@ raw="${CELERY_QUEUES:-}"
 raw="${raw//,/ }"
 
 workers=()
+search_worker_enabled=false
+
 for q in $raw; do
   case "$q" in
-    search)       workers+=("celery-search-worker") ;;
-    page_fetch)   workers+=("celery-pagefetch-worker") ;;
-    interactive)  workers+=("celery-interactive-worker") ;;
-    maintenance)  workers+=("celery-maintenance-worker") ;;
-    "" )          ;;
+    search)
+      workers+=("celery-search-worker")
+      search_worker_enabled=true
+      ;;
+    page_fetch)
+      workers+=("celery-pagefetch-worker")
+      ;;
+    interactive)
+      workers+=("celery-interactive-worker")
+      ;;
+    maintenance)
+      workers+=("celery-maintenance-worker")
+      ;;
+    "" )
+      ;;
     * )
       echo "ERROR: unknown CELERY_QUEUES value '$q'"
       exit 1
@@ -33,6 +45,16 @@ if [[ "${SWIRL_PGBOUNCER,,}" == "true" && "${PGBOUNCER_PRODUCTION,,}" == "true" 
   start_args+=("pgbouncer")
 else
   echo "pgbouncer disabled"
+fi
+
+# Only apply ES 7 client downgrade for search-worker setup
+if [[ "${search_worker_enabled}" == "true" ]]; then
+  es_version="${SWIRL_ES_VERSION:-8}"
+  if [ "$es_version" -eq 7 ]; then
+    echo "Search worker enabled; installing ES version 7 client"
+    echo "Installing elasticsearch downgrade to 7.17.12"
+    pip install elasticsearch==7.17.12
+  fi
 fi
 
 # Prepare log files we expect and stream them to stdout for pod logs.
