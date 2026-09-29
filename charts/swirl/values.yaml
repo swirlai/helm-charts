@@ -276,40 +276,63 @@ tika:
   port: 9998
 
 # ==============================================================================
-# MCP (Model Context Protocol) Proxy Configuration
+# MCP (Model Context Protocol) Server Configuration
 # ==============================================================================
+# SWIRL 5 includes a built-in MCP server. It runs from the SWIRL image
+# (swirl.image above) as its own deployment and serves the streamable HTTP
+# transport at /mcp. It replaces the MCP proxy, which is retired as of SWIRL 5.0.
 mcp:
   enabled: false
-  host: "0.0.0.0"
   replicaCount: 1
-  image:
-    pullPolicy: Always
-    repository: swirlai/release-mcp-proxy-enterprise
-    tag: latest
-  port: 9000
-  # Azure Load Balancer configuration
-  loadBalancer:
-    azureResourceGroup:
-    azurePublicIPName:
-  # Health check probes
+  port: 8675
+  # SWIRL base URL the MCP server calls. Empty = the in-cluster SWIRL service.
+  baseUrl: ""
+  auth:
+    # static: every MCP caller acts as one SWIRL user, identified by an API
+    #         token. There is NO inbound authentication in this mode, so the
+    #         service must stay inside the cluster (ClusterIP).
+    # oidc:   OAuth 2.1 resource-server mode. Callers present their own bearer
+    #         token, validated against your identity provider. Required for
+    #         a LoadBalancer service.
+    mode: static
+    # static mode: key in swirl.secret.envSecrets that holds the token value.
+    # The value must be at most 40 characters (for example: openssl rand -hex 20).
+    tokenSecretKey: SWIRL_MCP_TOKEN
+    # static mode: the SWIRL user the token is provisioned for.
+    tokenUser: admin
+    oidc:
+      issuer: ""
+      jwksUri: ""
+      audience: ""
+      scopes: ""
+      resourceUrl: ""
+  # static mode: a hook job that provisions the token in SWIRL on install and
+  # on upgrade (idempotent). Disable only if you provision the token yourself.
+  tokenJob:
+    enabled: true
+  service:
+    # ClusterIP (default) or LoadBalancer. LoadBalancer requires auth.mode=oidc.
+    type: ClusterIP
+    # Azure Load Balancer configuration, used when type is LoadBalancer
+    loadBalancer:
+      azureResourceGroup:
+      azurePublicIPName:
+  # Health check probes (TCP)
   probe:
     liveness:
-      execCommand: ["/app/scripts/check-health.sh"]
       failureThreshold: 3
-      initialDelaySeconds: 30
-      periodSeconds: 10
-      timeoutSeconds: 30
+      initialDelaySeconds: 15
+      periodSeconds: 15
+      timeoutSeconds: 5
     readiness:
-      execCommand: ["/app/scripts/check-readiness.sh"]
       failureThreshold: 3
-      initialDelaySeconds: 30
+      initialDelaySeconds: 5
       periodSeconds: 10
-      timeoutSeconds: 30
-  # Swirl API connection settings
-  swirl:
-    api_base: "http://swirl-service.swirl.svc.cluster.local:8000"
-    api_base_path: "/api/swirl"
-    api_timeout: "30"
+      timeoutSeconds: 5
+  # Additional environment variables for the MCP container, for example
+  # SWIRL_MCP_LOG_LEVEL or SWIRL_MCP_RAG_POLL_TIMEOUT
+  extraEnv: []
+  resources: {}
 
 # ==============================================================================
 # Topic Text Matcher Configuration (for text summarization/RAG)

@@ -66,6 +66,13 @@ jobs:
           for chart in charts/*/; do
             echo "Linting $chart"
             helm lint "$chart" || exit 1
+            # Also lint with each ci/ values file: optional components (MCP)
+            # are off by default, so default values never render them.
+            for values in "$chart"ci/*.yaml; do
+              [ -f "$values" ] || continue
+              echo "Linting $chart with $values"
+              helm lint "$chart" -f "$values" || exit 1
+            done
           done
 
   kubeconform:
@@ -90,4 +97,9 @@ jobs:
           for chart in charts/*/; do
             echo "Validating $chart"
             helm template "$chart" | kubeconform -strict -summary || exit 1
+            for values in "$chart"ci/*.yaml; do
+              [ -f "$values" ] || continue
+              echo "Validating $chart with $values"
+              helm template "$chart" -f "$values" | kubeconform -strict -summary || exit 1
+            done
           done

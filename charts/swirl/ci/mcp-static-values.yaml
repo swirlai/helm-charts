@@ -1,0 +1,8 @@
+# chart-testing values: MCP enabled in static mode (the default).
+# The token below is a placeholder for rendering and linting, not a secret.
+mcp:
+  enabled: true
+swirl:
+  secret:
+    envSecrets:
+      SWIRL_MCP_TOKEN: "ci-placeholder-not-a-real-token"

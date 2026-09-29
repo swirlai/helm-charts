@@ -1,11 +1,29 @@
 {{- if .Values.mcp.enabled -}}
+{{- /*
+SWIRL's built-in MCP server (python -m swirl_mcp), run from the SWIRL image.
+It replaced the MCP proxy in SWIRL 5.0; the chart followed in 0.3.0.
+*/ -}}
+{{- if or .Values.mcp.image .Values.mcp.swirl .Values.mcp.host }}
+{{- fail "mcp.image, mcp.swirl and mcp.host were removed in chart 0.3.0: the MCP proxy is retired and the chart now runs SWIRL's built-in MCP server from the SWIRL image. See \"Upgrading to 0.3.0\" in the chart README." }}
+{{- end }}
+{{- $mode := default "static" .Values.mcp.auth.mode }}
+{{- if not (has $mode (list "static" "oidc")) }}
+{{- fail (printf "mcp.auth.mode must be \"static\" or \"oidc\", got %q" $mode) }}
+{{- end }}
+{{- if eq $mode "oidc" }}
+{{- if not (and .Values.mcp.auth.oidc.issuer .Values.mcp.auth.oidc.jwksUri .Values.mcp.auth.oidc.audience) }}
+{{- fail "mcp.auth.mode=oidc requires mcp.auth.oidc.issuer, mcp.auth.oidc.jwksUri and mcp.auth.oidc.audience" }}
+{{- end }}
+{{- end }}
+{{- $ns := default (include "swirl.name" $) .Values.namespace }}
+{{- $baseUrl := default (printf "http://%s-service.%s.svc.cluster.local:8000" (include "swirl.name" $) $ns) .Values.mcp.baseUrl }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mcp
-  namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
+  namespace: {{ $ns | quote }}
   labels:
-    app.kubernetes.io/instance: swirl
+    app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/name: mcp
 spec:
   replicas: {{ .Values.mcp.replicaCount }}
@@ -19,59 +37,64 @@ spec:
         app.kubernetes.io/name: "mcp"
         app.kubernetes.io/instance: {{ .Release.Name }}
     spec:
+      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
       containers:
         - name: mcp
-          image: "{{ .Values.mcp.image.repository}}:{{ .Values.mcp.image.tag }}"
-          imagePullPolicy: {{ default "Always" .Values.mcp.image.pullPolicy | quote }}
+          image: "{{ .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.swirl.image.pullPolicy | quote }}
+          command: ["python", "-m", "swirl_mcp", "--transport", "http", "--host", "0.0.0.0", "--port", {{ .Values.mcp.port | quote }}]
           ports:
             - containerPort: {{ .Values.mcp.port }}
               protocol: TCP
               name: http
+          # The MCP endpoint answers a plain GET with 4xx, which an httpGet
+          # probe would count as a failure. A TCP check is the honest signal.
           livenessProbe:
-            exec:
-              command: {{ .Values.mcp.probe.liveness.execCommand }}
-            initialDelaySeconds: {{ default 30 .Values.mcp.probe.liveness.initialDelaySeconds }}
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ default 15 .Values.mcp.probe.liveness.initialDelaySeconds }}
             periodSeconds: {{ default 15 .Values.mcp.probe.liveness.periodSeconds }}
             failureThreshold: {{ default 3 .Values.mcp.probe.liveness.failureThreshold }}
-            timeoutSeconds: {{ default 30 .Values.mcp.probe.liveness.timeoutSeconds }}
+            timeoutSeconds: {{ default 5 .Values.mcp.probe.liveness.timeoutSeconds }}
           readinessProbe:
-            exec:
-              command: {{ .Values.mcp.probe.readiness.execCommand }}
-            initialDelaySeconds: {{ default 30 .Values.mcp.probe.readiness.initialDelaySeconds }}
-            periodSeconds: {{ default 15 .Values.mcp.probe.readiness.periodSeconds }}
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ default 5 .Values.mcp.probe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ default 10 .Values.mcp.probe.readiness.periodSeconds }}
             failureThreshold: {{ default 3 .Values.mcp.probe.readiness.failureThreshold }}
-            timeoutSeconds: {{ default 30 .Values.mcp.probe.readiness.timeoutSeconds }}
+            timeoutSeconds: {{ default 5 .Values.mcp.probe.readiness.timeoutSeconds }}
           env:
-            - name: SWIRL_API_BASE
-              value: "{{ .Values.mcp.swirl.api_base }}"
-            - name: SWIRL_API_USERNAME
+            - name: SWIRL_MCP_BASE_URL
+              value: {{ $baseUrl | quote }}
+            - name: SWIRL_MCP_AUTH
+              value: {{ $mode | quote }}
+            {{- if eq $mode "static" }}
+            - name: SWIRL_MCP_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: "swirl-env-secrets"
-                  key: SWIRL_API_USERNAME
-            - name: SWIRL_API_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: "swirl-env-secrets"
-                  key: SWIRL_API_PASSWORD
-            - name: SWIRL_API_BASE_PATH
-              value: "{{ .Values.mcp.swirl.api_base_path }}"
-            - name: SWIRL_MCP_SERVER_HOST
-              value: "{{ .Values.mcp.host }}"
-            - name: SWIRL_MCP_SERVER_PORT
-              value: "{{ .Values.mcp.port }}"
-            - name: SWIRL_MCP_SWIRL_API_TIMEOUT
-              value: "{{ .Values.mcp.swirl.api_timeout }}"
-            - name: SWIRL_MCP_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: "swirl-env-secrets"
-                  key: SWIRL_MCP_USERNAME
-            - name: SWIRL_MCP_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: "swirl-env-secrets"
-                  key: SWIRL_MCP_PASSWORD
-
-      {{- include "swirl.imagePullSecrets" (dict "context" .) }}
+                  name: {{ printf "%s-%s" (include "swirl.name" $) "env-secrets" | quote }}
+                  key: {{ default "SWIRL_MCP_TOKEN" .Values.mcp.auth.tokenSecretKey | quote }}
+            {{- else }}
+            - name: SWIRL_MCP_OIDC_ISSUER
+              value: {{ .Values.mcp.auth.oidc.issuer | quote }}
+            - name: SWIRL_MCP_OIDC_JWKS_URI
+              value: {{ .Values.mcp.auth.oidc.jwksUri | quote }}
+            - name: SWIRL_MCP_OIDC_AUDIENCE
+              value: {{ .Values.mcp.auth.oidc.audience | quote }}
+            {{- with .Values.mcp.auth.oidc.scopes }}
+            - name: SWIRL_MCP_OIDC_SCOPES
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.mcp.auth.oidc.resourceUrl }}
+            - name: SWIRL_MCP_RESOURCE_URL
+              value: {{ . | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.mcp.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.mcp.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
 {{- end }}

@@ -12,7 +12,7 @@ Swirl is an AI-powered search and retrieval augmented generation (RAG) platform 
 - Redis for caching and message brokering
 - Apache Tika for document processing
 - Topic Text Matcher for semantic search
-- MCP (Model Context Protocol) service
+- MCP (Model Context Protocol) server, built into SWIRL 5
 - Horizontal Pod Autoscaling (HPA)
 - Azure-native persistent storage
 
@@ -290,23 +290,69 @@ topicTextMatcher:
   enabled: false
 ```
 
-## With MCP Public Endpoint
+## With the MCP Server
+
+SWIRL 5 includes a built-in MCP (Model Context Protocol) server. The chart runs it from the SWIRL image as its own deployment, serving the streamable HTTP transport at `/mcp` on port 8675. It replaces the MCP proxy, which is retired as of SWIRL 5.0.
+
+### Inside the cluster (static token, the default)
+
+Every MCP caller acts as one SWIRL user, identified by an API token. There is no inbound authentication in this mode, so the service is a `ClusterIP` and is reachable only from inside the cluster.
+
 ```bash
 # mcp-values.yaml
 mcp:
   enabled: true
-  port: 9000
-  loadBalancer:
-    azureResourceGroup: "my-resource-group"
-    azurePublicIPName: "swirl-mcp-public-ip"
 
 swirl:
-  configMap:
-    envConfig:
-      SWIRL_MCP_ENABLED: "true"
-      SWIRL_MCP_HOST: "mcp"
-      SWIRL_MCP_PORT: "9000"
+  secret:
+    envSecrets:
+      # At most 40 characters, for example: openssl rand -hex 20
+      SWIRL_MCP_TOKEN: "<api-key>"
 ```
+
+A hook job provisions the token in SWIRL for the `admin` user on install and on upgrade. The MCP endpoint is then available in the cluster at `http://mcp.<namespace>.svc.cluster.local:8675/mcp`.
+
+### Public endpoint (OIDC)
+
+To expose the MCP server outside the cluster, use OIDC mode. Callers present their own bearer token, which the MCP server validates against your identity provider and SWIRL maps to the caller's own user. The chart refuses to render a `LoadBalancer` service in static mode.
+
+```bash
+# mcp-public-values.yaml
+mcp:
+  enabled: true
+  auth:
+    mode: oidc
+    oidc:
+      issuer: "https://<idp-host>/realms/<realm>"
+      jwksUri: "https://<idp-host>/realms/<realm>/protocol/openid-connect/certs"
+      audience: "https://<mcp-host>"
+      resourceUrl: "https://<mcp-host>"
+  service:
+    type: LoadBalancer
+    loadBalancer:
+      azureResourceGroup: "my-resource-group"
+      azurePublicIPName: "swirl-mcp-public-ip"
+```
+
+### Upgrading to 0.3.0
+
+Chart 0.3.0 changes the `mcp` values incompatibly. If you have `mcp.enabled: true`:
+
+| Removed | Replace with |
+|---|---|
+| `mcp.image.*` | Nothing. The MCP server runs from `swirl.image`. |
+| `mcp.host` | Nothing. |
+| `mcp.port: 9000` | `mcp.port: 8675` (the default) |
+| `mcp.swirl.api_base` | `mcp.baseUrl`, or leave empty for the in-cluster SWIRL service |
+| `mcp.swirl.api_base_path`, `mcp.swirl.api_timeout` | Nothing. |
+| `mcp.loadBalancer.*` | `mcp.service.loadBalancer.*`, with `mcp.service.type: LoadBalancer` and `mcp.auth.mode: oidc` |
+| `mcp.probe.*.execCommand` | Nothing. The probes are TCP checks. |
+| secrets `SWIRL_MCP_USERNAME`, `SWIRL_MCP_PASSWORD` | secret `SWIRL_MCP_TOKEN` |
+| config `SWIRL_MCP_ENABLED`, `SWIRL_MCP_HOST`, `SWIRL_MCP_PORT` | Nothing. SWIRL 5 does not read them. |
+
+The chart stops with an error if the removed `mcp.image`, `mcp.swirl` or `mcp.host` values are still set while MCP is enabled. MCP clients must change too: the proxy spoke a raw TCP protocol on port 9000; the built-in server speaks streamable HTTP at `http://<host>:8675/mcp`.
+
+The built-in MCP server requires SWIRL 5.0 or later. To keep running the MCP proxy with SWIRL 4.x, stay on chart 0.2.5.
 
 # Upgrading
 ```bash
