@@ -1,0 +1,16 @@
+# chart-testing values: MCP enabled in OIDC mode behind a LoadBalancer.
+# The identity provider values are placeholders for rendering and linting.
+mcp:
+  enabled: true
+  auth:
+    mode: oidc
+    oidc:
+      issuer: "https://idp.example.com/realms/swirl"
+      jwksUri: "https://idp.example.com/realms/swirl/protocol/openid-connect/certs"
+      audience: "https://mcp.example.com"
+      resourceUrl: "https://mcp.example.com"
+  service:
+    type: LoadBalancer
+    loadBalancer:
+      azureResourceGroup: "example-resource-group"
+      azurePublicIPName: "example-mcp-public-ip"

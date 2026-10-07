@@ -1,0 +1,98 @@
+{{- if and .Values.mcp.enabled .Values.mcp.tokenJob.enabled (eq (default "static" .Values.mcp.auth.mode) "static") -}}
+{{- /*
+Provisions the API token the MCP server authenticates to SWIRL with.
+Separate from the post-deploy job on purpose: that one runs on install only
+and creates the admin user, so it cannot run again. This one is idempotent
+(manage.py ensure_token) and also runs on upgrade, which is how an existing
+deployment moves to SWIRL 5.
+*/ -}}
+{{- $ns := default (include "swirl.name" .) .Values.namespace }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-%s" (include "swirl.name" .) "mcp-token" | quote }}
+  namespace: {{ $ns | quote }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      name: {{ printf "%s-%s" (include "swirl.name" .) "mcp-token-job" | quote }}
+      labels:
+        sidecar.istio.io/inject: "false"
+        {{- include "common.labels" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "swirl.imagePullSecrets" (dict "context" .) | nindent 6 }}
+      {{- if .Values.swirl.serviceAccount.create }}
+      serviceAccountName: {{ include "swirl.serviceAccountName" $ }}
+      {{- end }}
+      {{- if .Values.swirl.secretProviderClass.enabled }}
+      volumes:
+        - name: secrets-store-inline
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ printf "%s-%s" (include "swirl.name" .) "secret-store" | quote }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-swirl
+          securityContext:
+            {{- toYaml .Values.swirl.securityContext | nindent 12 }}
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              export TARGET=http://{{ printf "%s-%s" (include "swirl.name" .) "service" }}.{{ $ns }}.svc.cluster.local:8000/swirl/health/celery/
+              echo "Checking $TARGET"
+              until curl -f $TARGET >/dev/null 2>&1; do
+                echo "Swirl service not ready, waiting..."
+                sleep 5
+              done
+              echo "Swirl service is ready!"
+      containers:
+        - name: {{ printf "%s-%s" (include "swirl.name" .) "mcp-token-job" | quote }}
+          securityContext:
+            {{- toYaml .Values.swirl.securityContext | nindent 12 }}
+          image: "{{ .Values.swirl.image.repository }}:{{ .Values.swirl.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.swirl.image.pullPolicy | quote }}
+          # The token value is read from the environment by ensure_token and
+          # is never passed as an argument or printed.
+          command:
+            - python
+            - manage.py
+            - ensure_token
+            - {{ default "admin" .Values.mcp.auth.tokenUser | quote }}
+            - --key-env
+            - {{ default "SWIRL_MCP_TOKEN" .Values.mcp.auth.tokenSecretKey | quote }}
+          {{- if .Values.swirl.secretProviderClass.enabled }}
+          volumeMounts:
+            - name: secrets-store-inline
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-config" | quote }}
+            - secretRef:
+                name: {{ printf "%s-%s" (include "swirl.name" $) "env-secrets" | quote }}
+      {{- with .Values.swirl.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swirl.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.swirl.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

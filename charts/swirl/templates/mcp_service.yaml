@@ -1,26 +1,35 @@
 {{- if .Values.mcp.enabled -}}
+{{- $type := default "ClusterIP" .Values.mcp.service.type }}
+{{- $mode := default "static" .Values.mcp.auth.mode }}
+{{- if and (eq $type "LoadBalancer") (ne $mode "oidc") }}
+{{- fail "mcp.service.type=LoadBalancer requires mcp.auth.mode=oidc. In static mode the MCP server has no inbound authentication: every caller acts as the token's user, so it must not be reachable from outside the cluster." }}
+{{- end }}
 apiVersion: v1
 kind: Service
 metadata:
   name: mcp
   namespace: {{ default (include "swirl.name" $) .Values.namespace | quote }}
   labels:
-    app.kubernetes.io/instance: swirl
+    app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/name: mcp
+  {{- if eq $type "LoadBalancer" }}
   annotations:
-    service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.mcp.loadBalancer.azureResourceGroup | quote }}
-    service.beta.kubernetes.io/azure-pip-name: {{ .Values.mcp.loadBalancer.azurePublicIPName | quote }}
+    service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.mcp.service.loadBalancer.azureResourceGroup | quote }}
+    service.beta.kubernetes.io/azure-pip-name: {{ .Values.mcp.service.loadBalancer.azurePublicIPName | quote }}
     service.beta.kubernetes.io/azure-load-balancer-health-probe-protocol: "Tcp"
-    service.beta.kubernetes.io/azure-load-balancer-health-probe-port: "9000"
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-port: {{ .Values.mcp.port | quote }}
+  {{- end }}
 spec:
-  type: LoadBalancer
+  type: {{ $type }}
+  {{- if eq $type "LoadBalancer" }}
   externalTrafficPolicy: Local
+  {{- end }}
   ports:
-    - port: {{ default "9000" .Values.mcp.port }}
-      targetPort: {{ default "9000" .Values.mcp.port }}
+    - port: {{ .Values.mcp.port }}
+      targetPort: http
       protocol: TCP
       name: http
   selector:
-    app.kubernetes.io/instance: swirl
+    app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/name: mcp
 {{- end }}
